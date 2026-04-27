@@ -281,7 +281,7 @@ export function PatientForm({ ...props }: PatientFormProps) {
               <FormControl>
                 <div className="flex gap-2">
                   <Input placeholder="Account address" {...field} disabled />
-                  <NavBar setAddress={setAddress} />
+                  <NavBar setAddress={setAddress} role="patient" />
                 </div>
               </FormControl>
               <FormDescription>*You cannot change this later</FormDescription>

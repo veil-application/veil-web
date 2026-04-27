@@ -8,6 +8,11 @@ import {
   TokenABI,
   TokenAddress,
 } from "@/lib/contract"
+import {
+  DemoRole,
+  getActiveDemoRole,
+  getDemoConfig,
+} from "@/lib/demo-wallet"
 
 import { toast } from "./ui/use-toast"
 
@@ -42,25 +47,38 @@ interface Prescription {
 }
 
 export class MedicalContract {
-  private provider: ethers.BrowserProvider
+  private provider: ethers.BrowserProvider | ethers.JsonRpcProvider
   private signer: ethers.Signer
   private prescriptionContract: ethers.Contract
   private tokenContract: ethers.Contract
   public connected: boolean = false
   public account: string | null = null
+  private demoRole: DemoRole | null
 
-  constructor(address: string) {
+  constructor(address: string, demoRole: DemoRole | null = null) {
     this.account = address
     this.connected = true
+    // If a demo role wasn't passed explicitly, look it up so legacy callers
+    // (which pre-date the demo flow) still work after the user clicks the
+    // "Use Demo Wallet" button.
+    this.demoRole = demoRole ?? getActiveDemoRole()
     toast({
-      title: "Contract is live!",
+      title: this.demoRole
+        ? `Contract is live (demo wallet: ${this.demoRole})`
+        : "Contract is live!",
     })
   }
 
   public async init() {
-    if (!window.ethereum) throw new Error("Metamask not present")
-    this.provider = new ethers.BrowserProvider(window.ethereum)
-    this.signer = await this.provider.getSigner()
+    if (this.demoRole) {
+      const cfg = getDemoConfig(this.demoRole)
+      this.provider = new ethers.JsonRpcProvider(cfg.rpcUrl)
+      this.signer = new ethers.Wallet(cfg.privateKey, this.provider)
+    } else {
+      if (!window.ethereum) throw new Error("Metamask not present")
+      this.provider = new ethers.BrowserProvider(window.ethereum)
+      this.signer = await this.provider.getSigner()
+    }
 
     // Initialize the contracts
     this.prescriptionContract = new ethers.Contract(

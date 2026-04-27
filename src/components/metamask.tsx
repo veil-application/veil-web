@@ -2,8 +2,15 @@
 
 import { useEffect, useState } from "react"
 import { useSDK } from "@metamask/sdk-react"
-import { InfoIcon, WalletIcon } from "lucide-react"
+import { InfoIcon, RocketIcon, WalletIcon } from "lucide-react"
 
+import {
+  clearActiveDemoRole,
+  DemoRole,
+  getActiveDemoRole,
+  getDemoConfig,
+  setActiveDemoRole,
+} from "@/lib/demo-wallet"
 import { toast } from "@/hooks/use-toast"
 import { Button } from "@/components/ui/button"
 import { ToastAction } from "@/components/ui/toast"
@@ -27,6 +34,8 @@ const CHAIN_CONFIG = {
 // Type definitions for better type safety
 type ConnectWalletButtonProps = {
   setAddress: (addr: string) => void
+  /** Which demo wallet to use when the user clicks "Use Demo Wallet". */
+  role?: DemoRole
 }
 
 const switchEthereumChain = async (e: React.MouseEvent<HTMLButtonElement>) => {
@@ -57,10 +66,44 @@ const switchEthereumChain = async (e: React.MouseEvent<HTMLButtonElement>) => {
   }
 }
 
-const ConnectWalletButton = ({ setAddress }: ConnectWalletButtonProps) => {
+const ConnectWalletButton = ({
+  setAddress,
+  role,
+}: ConnectWalletButtonProps) => {
   const [chainId, setChainId] = useState<string | null>(null)
   const [connected, setConnected] = useState<boolean>(false)
+  const [demoActive, setDemoActive] = useState<DemoRole | null>(null)
   const { sdk, connecting, balance } = useSDK()
+
+  // Restore demo state across re-mounts (e.g. when the form page reloads).
+  useEffect(() => {
+    const active = getActiveDemoRole()
+    if (active && active === role) {
+      setDemoActive(active)
+      setAddress(getDemoConfig(active).address)
+    }
+  }, [role, setAddress])
+
+  const useDemoWallet = (e: React.MouseEvent<HTMLButtonElement>) => {
+    e.preventDefault()
+    if (!role) return
+    const cfg = getDemoConfig(role)
+    setActiveDemoRole(role)
+    setDemoActive(role)
+    setAddress(cfg.address)
+    toast({
+      title: `Demo ${role} wallet active`,
+      description: `Block ID: ${cfg.address.slice(0, 10)}…  (signs against ${cfg.rpcUrl})`,
+    })
+  }
+
+  const exitDemoWallet = (e: React.MouseEvent<HTMLButtonElement>) => {
+    e.preventDefault()
+    clearActiveDemoRole()
+    setDemoActive(null)
+    setAddress("")
+    toast({ title: "Demo wallet cleared" })
+  }
 
   useEffect(() => {
     const ethereum = window?.ethereum
@@ -175,8 +218,26 @@ const ConnectWalletButton = ({ setAddress }: ConnectWalletButtonProps) => {
     }
   }
 
+  if (demoActive) {
+    return (
+      <div className="flex flex-col items-end gap-1">
+        <Button
+          type="button"
+          variant="destructive"
+          size="sm"
+          onClick={exitDemoWallet}
+        >
+          <RocketIcon className="mr-1 size-4" /> Exit demo wallet
+        </Button>
+        <span className="text-xs text-muted-foreground">
+          Using demo {demoActive}
+        </span>
+      </div>
+    )
+  }
+
   return (
-    <div className="relative">
+    <div className="relative flex items-center gap-2">
       {connected ? (
         isOnTestnet ? (
           <div className="flex items-center gap-4">
@@ -205,24 +266,37 @@ const ConnectWalletButton = ({ setAddress }: ConnectWalletButtonProps) => {
           </Button>
         )
       ) : (
-        <Button
-          type="button"
-          variant="default"
-          disabled={connecting}
-          onClick={connect}
-        >
-          <WalletIcon className="size-4" /> Connect MetaMask
-        </Button>
+        <>
+          <Button
+            type="button"
+            variant="default"
+            disabled={connecting}
+            onClick={connect}
+          >
+            <WalletIcon className="size-4" /> Connect MetaMask
+          </Button>
+          {role && (
+            <Button
+              type="button"
+              variant="secondary"
+              size="sm"
+              onClick={useDemoWallet}
+              title="Sign with a hardcoded Hardhat test account (demo / no-MetaMask flow)"
+            >
+              <RocketIcon className="mr-1 size-4" /> Use Demo Wallet
+            </Button>
+          )}
+        </>
       )}
     </div>
   )
 }
 
-const NavBar = ({ setAddress }: ConnectWalletButtonProps) => {
+const NavBar = ({ setAddress, role }: ConnectWalletButtonProps) => {
   return (
     <MetaMaskProvider>
       <Toaster />
-      <ConnectWalletButton setAddress={setAddress} />
+      <ConnectWalletButton setAddress={setAddress} role={role} />
     </MetaMaskProvider>
   )
 }

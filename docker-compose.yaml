@@ -1,15 +1,16 @@
 version: "3.8"
 
+# Local-dev MongoDB. Mongo's replica set + auth combo requires a keyFile
+# (see https://www.mongodb.com/docs/manual/tutorial/enforce-keyfile-access-control-in-existing-replica-set/),
+# and the original compose file shipped with neither — which is why it was
+# crash-looping. For local dev we run without auth (Prisma + replica set still
+# work the same way; just don't ship this to prod).
+
 services:
   mongodb:
-    image: mongo:latest
+    image: mongo:7
     container_name: mongodb
     restart: always
-    environment:
-      MONGO_INITDB_ROOT_USERNAME: root
-      MONGO_INITDB_ROOT_PASSWORD: example
-      MONGO_INITDB_DATABASE: mydatabase
-      MONGO_REPLICA_SET_NAME: rs0
     ports:
       - "27017:27017"
     volumes:
@@ -17,9 +18,9 @@ services:
       - mongodb_config:/data/configdb
     networks:
       - mongo_network
-    command: mongod --replSet rs0 --bind_ip_all
+    command: ["mongod", "--replSet", "rs0", "--bind_ip_all"]
     healthcheck:
-      test: echo 'db.runCommand("ping").ok' | mongosh localhost:27017/test --quiet
+      test: ["CMD", "mongosh", "--quiet", "--eval", "db.runCommand({ ping: 1 }).ok"]
       interval: 10s
       timeout: 10s
       retries: 5
